@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { PRESETS, CompanyPreset } from './data/presets';
 import { FinancialInputs, NewsArticle } from './types/financial';
 import {
@@ -50,8 +50,11 @@ export default function App() {
   const [showEditor, setShowEditor] = useState<boolean>(false);
 
   // News State
-  const [news, setNews] = useState<NewsArticle[]>(PRESETS[0].curatedNews);
+  const [news, setNews] = useState<NewsArticle[]>([]);
   const [isLoadingNews, setIsLoadingNews] = useState<boolean>(false);
+  const [newsError, setNewsError] = useState<string | null>(null);
+  const [newsFetchedAt, setNewsFetchedAt] = useState<string | null>(null);
+  const newsRequestId = useRef(0);
   const [isLoadingFiling, setIsLoadingFiling] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -94,7 +97,6 @@ export default function App() {
   const handleSelectPreset = (preset: CompanyPreset) => {
     setSelectedPreset(preset);
     setInputs(preset.inputs);
-    setNews(preset.curatedNews);
     showToast(`Loaded ${preset.name} (${preset.ticker}) 10-K profile`);
   };
 
@@ -103,35 +105,53 @@ export default function App() {
     handleSelectPreset(PRESETS[0]);
   };
 
-  // Trigger Live News Grounding via server API
-  const handleRefreshNews = async () => {
+  // Load real news (approved outlets only) for the active company.
+  // Ignores late responses if the company changed while a request was in flight.
+  const loadNews = async (companyName: string, ticker: string, announce: boolean) => {
+    const requestId = ++newsRequestId.current;
     setIsLoadingNews(true);
-    showToast('Querying Gemini with Google Search for recent WSJ & NYT articles...');
+    setNewsError(null);
     try {
-      const res = await fetch('/api/news-grounding', {
+      const res = await fetch('/api/news', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyName: inputs.companyName,
-          ticker: inputs.ticker,
-        }),
+        body: JSON.stringify({ companyName, ticker }),
       });
       const data = await res.json();
-      if (data.success && data.articles && data.articles.length > 0) {
-        setNews(data.articles);
-        showToast(`Retrieved ${data.articles.length} verified news articles with live links`);
-      } else if (data.warning) {
-        showToast(data.warning);
+      if (requestId !== newsRequestId.current) return;
+      if (data.success) {
+        setNews(data.articles ?? []);
+        setNewsFetchedAt(data.fetchedAt ?? null);
+        if (announce) {
+          showToast(
+            data.articles?.length
+              ? `Found ${data.articles.length} stories from approved outlets`
+              : 'No recent stories from approved outlets'
+          );
+        }
       } else {
-        showToast('Preserved verified news benchmark.');
+        setNews([]);
+        setNewsError(data.error || 'Could not load news.');
       }
     } catch (err) {
+      if (requestId !== newsRequestId.current) return;
       console.error(err);
-      showToast('Completed with verified news sources.');
+      setNews([]);
+      setNewsError('Could not reach the server to load news.');
     } finally {
-      setIsLoadingNews(false);
+      if (requestId === newsRequestId.current) setIsLoadingNews(false);
     }
   };
+
+  const handleRefreshNews = () => loadNews(inputs.companyName, inputs.ticker, true);
+
+  // Fetch news automatically whenever the active company changes
+  useEffect(() => {
+    if (!inputs.companyName && !inputs.ticker) return;
+    setNews([]);
+    loadNews(inputs.companyName, inputs.ticker, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inputs.companyName, inputs.ticker]);
 
   // Trigger SEC Filing Extraction via server API
   const handleAnalyzeUrlOrTicker = async (target: string) => {
@@ -213,7 +233,7 @@ ${verdict.verdictSummary}
     { id: 'profitability', label: '2. Profitability', icon: TrendingUp, score: profitability.score },
     { id: 'efficiency', label: '3. Efficiency', icon: Zap, score: efficiency.score },
     { id: 'solvency', label: '4. Solvency', icon: Scale, score: solvency.score },
-    { id: 'news', label: 'WSJ / NYT News', icon: Newspaper, count: news.length },
+    { id: 'news', label: 'News', icon: Newspaper, count: news.length },
     { id: 'all', label: 'All Modules (Script Option 5)', icon: Layers },
   ];
 
@@ -389,7 +409,7 @@ ${verdict.verdictSummary}
                   <div className="flex items-center space-x-2">
                     <Newspaper className="h-4 w-4 text-indigo-400" />
                     <h3 className="text-sm font-bold text-white">
-                      Recent Press Corroboration (Within 6 Months)
+                      Latest Coverage From Approved Outlets (Last 30 Days)
                     </h3>
                   </div>
                   <button
@@ -399,27 +419,37 @@ ${verdict.verdictSummary}
                     View All {news.length} Stories →
                   </button>
                 </div>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  {news.slice(0, 2).map((item) => (
-                    <div key={item.id} className="rounded-lg bg-slate-950 p-3.5 border border-slate-800">
-                      <div className="flex items-center justify-between text-[11px] text-slate-400">
-                        <span className="font-semibold text-slate-300">{item.source}</span>
-                        <span>{item.publishedDate}</span>
+                {isLoadingNews && news.length === 0 ? (
+                  <p className="text-xs text-slate-400">Loading news for {inputs.ticker}...</p>
+                ) : newsError ? (
+                  <p className="text-xs text-rose-300">{newsError}</p>
+                ) : news.length === 0 ? (
+                  <p className="text-xs text-slate-400">
+                    No recent stories about {inputs.companyName} from approved outlets.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    {news.slice(0, 2).map((item) => (
+                      <div key={item.id} className="rounded-lg bg-slate-950 p-3.5 border border-slate-800">
+                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                          <span className="font-semibold text-slate-300">{item.source}</span>
+                          <span>{item.publishedDate}</span>
+                        </div>
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1 block text-xs font-bold text-white hover:text-emerald-400 transition-colors line-clamp-2"
+                        >
+                          {item.title}
+                        </a>
+                        {item.topics.length > 0 && (
+                          <p className="mt-1 text-[11px] text-slate-400">{item.topics.join(' • ')}</p>
+                        )}
                       </div>
-                      <a
-                        href={item.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-1 block text-xs font-bold text-white hover:text-emerald-400 transition-colors line-clamp-1"
-                      >
-                        {item.title}
-                      </a>
-                      <p className="mt-1 text-[11px] text-slate-400 line-clamp-2">
-                        {item.snippet}
-                      </p>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -447,6 +477,8 @@ ${verdict.verdictSummary}
               onRefreshNews={handleRefreshNews}
               companyName={inputs.companyName}
               ticker={inputs.ticker}
+              error={newsError}
+              fetchedAt={newsFetchedAt}
             />
           )}
 
@@ -466,6 +498,8 @@ ${verdict.verdictSummary}
                 onRefreshNews={handleRefreshNews}
                 companyName={inputs.companyName}
                 ticker={inputs.ticker}
+                error={newsError}
+                fetchedAt={newsFetchedAt}
               />
             </div>
           )}

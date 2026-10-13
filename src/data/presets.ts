@@ -1,4 +1,4 @@
-import { FinancialInputs, NewsArticle } from '../types/financial';
+import { FinancialInputs } from '../types/financial';
 
 export interface CompanyPreset {
   id: string;
@@ -7,7 +7,6 @@ export interface CompanyPreset {
   badge: string;
   description: string;
   inputs: FinancialInputs;
-  curatedNews: NewsArticle[];
 }
 
 export const PRESETS: CompanyPreset[] = [
@@ -62,56 +61,6 @@ export const PRESETS: CompanyPreset[] = [
       ebit: 133101000000, // $133.10B
       interestExpense: 3900000000, // $3.90B
     },
-    curatedNews: [
-      {
-        id: 'news-wsj-1',
-        title: 'Apple’s AI Strategy Focuses on Privacy and Hardware Moat Rather Than Massive Cloud Capex',
-        source: 'The Wall Street Journal',
-        url: 'https://www.wsj.com/tech/apple-ai-strategy-capital-expenditure-cash-flow',
-        publishedDate: '2026-08-14',
-        snippet:
-          'While hyperscaler rivals spend tens of billions on generative AI data centers, Apple’s capital-light on-device approach protects its extraordinary 27% free cash flow margins and preserves balance sheet liquidity.',
-        sentiment: 'bullish',
-        relevanceToSafety:
-          'Confirms cash generation remains insulated from crushing hyper-capex cycles, sustaining high TIE interest coverage.',
-      },
-      {
-        id: 'news-nyt-1',
-        title: 'Antitrust Scrutiny Mounts Over App Store Fees and Google Search Distribution Agreements',
-        source: 'The New York Times',
-        url: 'https://www.nytimes.com/technology/apple-google-antitrust-app-store-revenue',
-        publishedDate: '2026-09-02',
-        snippet:
-          'Regulatory scrutiny across Europe and the US Justice Department poses long-term risks to high-margin Services revenue, though Apple’s massive $112B annual net income cushion prevents solvency distress.',
-        sentiment: 'bearish',
-        relevanceToSafety:
-          'A regulatory headwind to service margins, but zero existential risk to debt servicing or liquidity.',
-      },
-      {
-        id: 'news-bloomberg-1',
-        title: 'Apple Hits 22% Global Smartphone Market Share as Services Revenue Accelerates 12%',
-        source: 'Bloomberg',
-        url: 'https://www.bloomberg.com/news/articles/apple-smartphone-market-share-services-growth',
-        publishedDate: '2026-10-05',
-        snippet:
-          'Apple expanded its active installed base past 2.5 billion devices, generating recurring high-margin services income that offsets cyclical hardware replacement patterns.',
-        sentiment: 'bullish',
-        relevanceToSafety:
-          'Highlights resilient top-line recurring revenue and steady cash inflows covering short-term vendor liabilities.',
-      },
-      {
-        id: 'news-reuters-1',
-        title: 'Apple Extends $100 Billion Share Buyback Program Amid Record Operating Cash Flow',
-        source: 'Reuters',
-        url: 'https://www.reuters.com/technology/apple-share-repurchase-operating-cash-flow',
-        publishedDate: '2026-07-28',
-        snippet:
-          'Apple returned another $100 billion to shareholders via repurchases and dividends. Financial analysts note that while this artificially shrinks accounting book equity, the business holds a fortress solvency position.',
-        sentiment: 'neutral',
-        relevanceToSafety:
-          'Directly explains why Debt-to-Equity is technically distorted in standard ratio screenings while actual default risk is near zero.',
-      },
-    ],
   },
   {
     id: 'msft-2025',
@@ -156,18 +105,6 @@ export const PRESETS: CompanyPreset[] = [
       ebit: 109000000000,
       interestExpense: 2800000000,
     },
-    curatedNews: [
-      {
-        id: 'news-wsj-msft',
-        title: 'Microsoft Azure Cloud Demand Accelerates on Enterprise AI Adoption',
-        source: 'The Wall Street Journal',
-        url: 'https://www.wsj.com/business/technology/microsoft-azure-earnings-cloud-growth',
-        publishedDate: '2026-08-19',
-        snippet: 'Cloud commercial bookings rose 29%, providing unmatched recurring revenue predictability.',
-        sentiment: 'bullish',
-        relevanceToSafety: 'Solidifies multi-year operational cash flow guarantees.',
-      },
-    ],
   },
   {
     id: 'nvda-2025',
@@ -212,18 +149,6 @@ export const PRESETS: CompanyPreset[] = [
       ebit: 79000000000,
       interestExpense: 350000000,
     },
-    curatedNews: [
-      {
-        id: 'news-ft-nvda',
-        title: 'Nvidia Blackwell Architecture Ramp Underpins 74% Gross Margin Guidance',
-        source: 'Financial Times',
-        url: 'https://www.ft.com/content/nvidia-blackwell-data-center-chips-margins',
-        publishedDate: '2026-09-15',
-        snippet: 'Sovereign and hyperscale demand guarantees sold-out production pipeline.',
-        sentiment: 'bullish',
-        relevanceToSafety: 'Virtually unassailable balance sheet with over 200x interest coverage.',
-      },
-    ],
   },
   {
     id: 'stressed-retailer',
@@ -267,17 +192,5 @@ export const PRESETS: CompanyPreset[] = [
       ebit: -150000000,
       interestExpense: 480000000,
     },
-    curatedNews: [
-      {
-        id: 'news-wsj-distress',
-        title: 'Retailer Hires Restructuring Advisors Amid Refinancing Wall and Cash Burn',
-        source: 'The Wall Street Journal',
-        url: 'https://www.wsj.com/business/retail/distressed-retailer-debt-restructuring-warning',
-        publishedDate: '2026-08-30',
-        snippet: 'Bondholders prepare for debt-for-equity swap as negative operating cash flow drains reserves.',
-        sentiment: 'bearish',
-        relevanceToSafety: 'Extreme solvency hazard: negative EBIT cannot support $480M interest tab.',
-      },
-    ],
   },
 ];

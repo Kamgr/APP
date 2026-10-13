@@ -148,12 +148,13 @@ export interface SolvencyResults {
 export interface NewsArticle {
   id: string;
   title: string;
-  source: string; // e.g., 'The Wall Street Journal', 'The New York Times', 'Bloomberg', 'Reuters'
-  url: string;
-  publishedDate: string; // within ~6 months
-  snippet: string;
-  sentiment: 'bullish' | 'bearish' | 'neutral';
-  relevanceToSafety: string;
+  source: string; // approved outlet display name, e.g. 'Reuters'
+  url: string; // always a real link returned by the news feed
+  publishedDate: string; // YYYY-MM-DD
+  topics: string[]; // decision-relevant themes matched in the headline
+  // Optional, AI-assisted read of the headline only. Absent if analysis is unavailable.
+  sentiment?: 'bullish' | 'bearish' | 'neutral';
+  relevanceToSafety?: string;
 }
 
 export interface InvestmentSafetyVerdict {

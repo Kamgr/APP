@@ -43,7 +43,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </span>
             </div>
             <p className="text-xs text-slate-400">
-              Audited Ratios • Solvency Modeling • Live WSJ Grounding
+              Audited Ratios • Solvency Modeling • Live Company News
             </p>
           </div>
         </div>
@@ -108,7 +108,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="flex items-center space-x-1.5 rounded-lg border border-teal-500/30 bg-teal-500/10 px-3 py-1.5 text-xs font-medium text-teal-300 transition-all hover:bg-teal-500/20 disabled:opacity-50"
           >
             <Sparkles className={`h-3.5 w-3.5 ${isLoadingNews ? 'animate-spin' : ''}`} />
-            <span>{isLoadingNews ? 'Fetching News...' : 'Live News (WSJ/NYT)'}</span>
+            <span>{isLoadingNews ? 'Loading News...' : 'Refresh News'}</span>
           </button>
         </div>
       </div>

@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
+import { fetchCompanyNews, CREDIBLE_SOURCES, FeedArticle } from './newsFeed';
 
 dotenv.config();
 
@@ -29,109 +30,79 @@ function getGeminiClient(): GoogleGenAI | null {
   });
 }
 
-// ------------------- API: LIVE NEWS GROUNDING ------------------- //
-app.post('/api/news-grounding', async (req: Request, res: Response) => {
-  try {
-    const { companyName, ticker } = req.body;
-    const queryCompany = companyName || ticker || 'Apple Inc.';
-    const queryTicker = ticker || 'AAPL';
+// ------------------- API: COMPANY NEWS (real feed, credible sources only) ------------------- //
+// Every link comes from the news feed itself. Gemini (if configured) only classifies
+// the sentiment of headlines; it never supplies or alters a URL, and there is no fallback link.
+type HeadlineAnalysis = {
+  sentiment: 'bullish' | 'bearish' | 'neutral';
+  relevanceToSafety: string;
+};
+const analysisCache = new Map<string, HeadlineAnalysis>();
 
-    const ai = getGeminiClient();
-    if (!ai) {
-      return res.status(200).json({
-        success: false,
-        warning: 'GEMINI_API_KEY is not configured. Displaying curated benchmark news articles.',
-        articles: [],
-      });
-    }
+async function addHeadlineAnalysis(articles: FeedArticle[], company: string) {
+  const ai = getGeminiClient();
+  const todo = articles.filter((a) => !analysisCache.has(a.id));
 
-    const prompt = `Search for recent articles published within the last 6 months from major business and financial news outlets: The Wall Street Journal (WSJ), The New York Times (NYT), Bloomberg, Financial Times (FT), and Reuters regarding ${queryCompany} (${queryTicker}).
-Focus specifically on topics that impact financial risk, balance sheet health, liquidity, debt load, operating cash flows, Capex/AI investments, earnings performance, or antitrust/regulatory investigations.
-
-For each relevant story, provide:
-1. Exact headline/title
-2. Publication name (e.g., The Wall Street Journal, Bloomberg, Reuters, The New York Times, Financial Times)
-3. Direct exact source URL from the search grounding
-4. Publication date (YYYY-MM-DD or Month Year within past 6 months)
-5. A concise 2-sentence summary focusing on the financial implication
-6. Sentiment ('bullish', 'bearish', or 'neutral')
-7. Relevance to investment safety (1 sentence explaining why this affects solvency or risk)
-
-Return the results formatted as a strict JSON array of objects with keys:
-"title", "source", "url", "publishedDate", "snippet", "sentiment", "relevanceToSafety".
-Return ONLY the JSON array without backticks or markdown fences if possible.`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: prompt,
-      config: {
-        tools: [{ googleSearch: {} }],
-      },
-    });
-
-    const rawText = response.text || '';
-    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-
-    // Extract real URLs from grounding chunks to ensure links are verified
-    const webUrls: Array<{ uri: string; title: string }> = [];
-    groundingChunks.forEach((chunk: any) => {
-      if (chunk.web?.uri) {
-        webUrls.push({
-          uri: chunk.web.uri,
-          title: chunk.web.title || '',
-        });
-      }
-    });
-
-    // Parse JSON from model text
-    let parsedArticles: any[] = [];
+  if (ai && todo.length > 0) {
     try {
-      const cleanJson = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
-      parsedArticles = JSON.parse(cleanJson);
-    } catch (e) {
-      // Fallback regex extraction if full JSON parsing had minor quirks
-      const match = rawText.match(/\[\s*\{[\s\S]*\}\s*\]/);
-      if (match) {
-        try {
-          parsedArticles = JSON.parse(match[0]);
-        } catch (inner) {
-          // ignore
+      const prompt = `You are classifying news headlines for an investor analyzing ${company}.
+For each headline, use ONLY the headline text. Do not add facts, numbers or context that are not in it.
+- "sentiment": "bullish", "bearish" or "neutral" for the company's financial position
+- "implication": one short sentence on what this could mean for liquidity, solvency, profitability or risk.
+  If the headline gives no basis, write exactly: "Headline alone does not indicate a financial impact."
+
+Return a JSON array: [{"i": number, "sentiment": string, "implication": string}]
+
+Headlines:
+${todo.map((a, i) => `${i}. [${a.source}] ${a.title}`).join('\n')}`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: prompt,
+        config: { responseMimeType: 'application/json' },
+      });
+
+      const parsed = JSON.parse(response.text || '[]');
+      if (Array.isArray(parsed)) {
+        for (const row of parsed) {
+          const article = todo[row?.i];
+          if (!article) continue;
+          analysisCache.set(article.id, {
+            sentiment: ['bullish', 'bearish', 'neutral'].includes(row.sentiment) ? row.sentiment : 'neutral',
+            relevanceToSafety: String(row.implication || '').slice(0, 300),
+          });
         }
       }
+    } catch (err) {
+      // Analysis is optional. Articles and links are still returned without it.
+      console.warn('Headline analysis skipped:', (err as Error).message);
     }
+  }
 
-    // Enhance and attach verified URLs from search grounding if available
-    const articles = (Array.isArray(parsedArticles) ? parsedArticles : []).map((art, idx) => {
-      let finalUrl = art.url;
-      // If the model gave a placeholder or invalid link, substitute a real grounding URL
-      if (!finalUrl || finalUrl.includes('example.com') || finalUrl.startsWith('#')) {
-        const matchingWeb = webUrls[idx % (webUrls.length || 1)];
-        if (matchingWeb) finalUrl = matchingWeb.uri;
-      }
-      return {
-        id: `news-${idx}-${Date.now()}`,
-        title: art.title || `${queryCompany} Financial & Strategic Update`,
-        source: art.source || 'Financial Press',
-        url: finalUrl || 'https://www.wsj.com',
-        publishedDate: art.publishedDate || new Date().toISOString().split('T')[0],
-        snippet: art.snippet || '',
-        sentiment: ['bullish', 'bearish', 'neutral'].includes(art.sentiment)
-          ? art.sentiment
-          : 'neutral',
-        relevanceToSafety: art.relevanceToSafety || 'Fundamental operational impact.',
-      };
-    });
+  return articles.map((a) => ({ ...a, ...(analysisCache.get(a.id) ?? {}) }));
+}
 
+app.post('/api/news', async (req: Request, res: Response) => {
+  const { companyName, ticker } = req.body ?? {};
+  if (!companyName && !ticker) {
+    return res.status(400).json({ success: false, error: 'companyName or ticker is required.' });
+  }
+
+  try {
+    const { articles, cached } = await fetchCompanyNews(companyName || '', ticker || '');
+    const enriched = await addHeadlineAnalysis(articles, companyName || ticker);
     return res.json({
       success: true,
-      articles,
-      groundingUrls: webUrls,
+      articles: enriched,
+      cached,
+      approvedSources: Object.values(CREDIBLE_SOURCES),
+      fetchedAt: new Date().toISOString(),
     });
   } catch (error: any) {
-    console.error('Error fetching grounded news:', error);
-    return res.status(500).json({
+    console.error('Error fetching company news:', error);
+    return res.status(502).json({
       success: false,
-      error: error.message || 'Failed to fetch news grounding',
+      error: 'Could not reach the news feed. Showing nothing is better than showing unverified links.',
     });
   }
 });

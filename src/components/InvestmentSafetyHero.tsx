@@ -198,7 +198,7 @@ export const InvestmentSafetyHero: React.FC<InvestmentSafetyHeroProps> = ({
               onClick={() => onSelectTab('news')}
               className="flex items-center space-x-1 font-medium text-emerald-400 transition hover:text-emerald-300"
             >
-              <span>Inspect Corroborating News (WSJ / NYT)</span>
+              <span>Inspect Latest Company News</span>
               <ArrowRight className="h-3.5 w-3.5" />
             </button>
           </div>
