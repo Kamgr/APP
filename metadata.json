@@ -1,0 +1,8 @@
+{
+  "name": "Remix SEC Financial Risk \u0026 Investment Safety Analyzer",
+  "description": "SEC EDGAR 10-K financial ratio analyzer and institutional investment safety evaluator with live WSJ and major news grounding.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
